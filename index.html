@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Chatbot</title>
+
+<style>
+body { font-family: Arial; background:#f2f2f2; }
+
+#chat {
+    height:85vh;
+    overflow-y:auto;
+    padding:10px;
+}
+
+.msg {
+    padding:10px;
+    margin:10px;
+    border-radius:8px;
+    max-width:70%;
+}
+
+.user {
+    background:#007bff;
+    color:white;
+    margin-left:auto;
+}
+
+.bot {
+    background:#ddd;
+}
+
+#inputArea {
+    display:flex;
+    position:fixed;
+    bottom:0;
+    width:100%;
+}
+
+input {
+    flex:1;
+    padding:10px;
+}
+
+button {
+    padding:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="chat"></div>
+
+<div id="inputArea">
+<input id="msg" placeholder="Type message..." onkeydown="if(event.key==='Enter') send()">
+<button onclick="send()">Send</button>
+<button onclick="voice()">🎤</button>
+</div>
+
+<script>
+
+// ---------------- ADD MESSAGE ----------------
+function addMessage(text, type){
+    let div = document.createElement("div");
+    div.className = "msg " + type;
+    div.innerText = text;
+
+    let chat = document.getElementById("chat");
+    chat.appendChild(div);
+    div.scrollIntoView();
+}
+
+// ---------------- TYPING EFFECT ----------------
+function typeEffect(text){
+    let div = document.createElement("div");
+    div.className = "msg bot";
+    document.getElementById("chat").appendChild(div);
+
+    let i = 0;
+    let interval = setInterval(()=>{
+        div.innerText = text.substring(0, i);
+        div.scrollIntoView();
+        i++;
+        if(i > text.length) clearInterval(interval);
+    }, 15);
+}
+
+// ---------------- LOADING ----------------
+let loadingDiv;
+
+function showLoading(){
+    loadingDiv = document.createElement("div");
+    loadingDiv.className = "msg bot";
+    loadingDiv.innerText = "Typing...";
+    document.getElementById("chat").appendChild(loadingDiv);
+}
+
+function removeLoading(){
+    if(loadingDiv) loadingDiv.remove();
+}
+
+// ---------------- SEND MESSAGE ----------------
+function send(){
+    let input = document.getElementById("msg");
+    let msg = input.value.trim();
+
+    if(!msg) return;
+
+    addMessage(msg, "user");
+    input.value = "";
+
+    showLoading();
+
+    fetch("/chat",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({message:msg})
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        removeLoading();
+
+        if(data.reply){
+            typeEffect(data.reply);
+
+            // speak
+            fetch("/speak",{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({text:data.reply})
+            });
+        } else {
+            addMessage("⚠️ No response","bot");
+        }
+    })
+    .catch(err=>{
+        removeLoading();
+        addMessage("❌ Server error","bot");
+        console.error(err);
+    });
+}
+
+// ---------------- VOICE ----------------
+function voice(){
+    showLoading();
+
+    fetch("/voice")
+    .then(r=>r.json())
+    .then(data=>{
+        removeLoading();
+
+        if(data.user){
+            addMessage(data.user,"user");
+            typeEffect(data.reply);
+        } else {
+            addMessage("⚠️ Voice error","bot");
+        }
+    })
+    .catch(()=>{
+        removeLoading();
+        addMessage("❌ Voice failed","bot");
+    });
+}
+
+</script>
+
+</body>
+</html>
